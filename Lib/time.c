@@ -26,6 +26,7 @@
 #include <stddef.h>
 
 // System Includes
+#include <Lib/mcu_compat.h>
 #include <Lib/Interrupts.h>
 
 // Debug Includes
@@ -77,11 +78,14 @@ const char* Time_ticksPer_ns_str = "<UNKNOWN>";
 // Get current time
 Time Time_now()
 {
-#if defined(_mk20dx128_) || defined(_mk20dx128vlf5_) || defined(_mk20dx256_) || defined(_mk20dx256vlh7_)
+#if defined(_kinetis_)
 	Time time = {
 		.ms    = systick_millis_count,
 		.ticks = ARM_DWT_CYCCNT,
 	};
+#elif defined(_sam_)
+	//SAM TODO
+	Time time = Time_init();
 #elif defined(_host_)
 	Time time = {
 		.ms    = systick_millis_count,
@@ -199,6 +203,66 @@ uint32_t Time_ticks( Time time )
 	uint32_t ticks = time.ms * Time_maxTicks;
 	ticks += time.ticks;
 	return ticks;
+}
+
+#if !defined(_host_)
+inline
+#endif
+Time Time_from_days( uint32_t days )
+{
+	Time time = {
+		.ms    = days * 1000 * 3600 * 24,
+		.ticks = 0,
+	};
+	return time;
+}
+
+#if !defined(_host_)
+inline
+#endif
+Time Time_from_hours( uint32_t hours )
+{
+	Time time = {
+		.ms    = hours * 1000 * 3600,
+		.ticks = 0,
+	};
+	return time;
+}
+
+#if !defined(_host_)
+inline
+#endif
+Time Time_from_minutes( uint32_t minutes )
+{
+	Time time = {
+		.ms    = minutes * 60 * 1000,
+		.ticks = 0,
+	};
+	return time;
+}
+
+#if !defined(_host_)
+inline
+#endif
+Time Time_from_seconds( uint32_t seconds )
+{
+	Time time = {
+		.ms    = seconds * 1000,
+		.ticks = 0,
+	};
+	return time;
+}
+
+#if !defined(_host_)
+inline
+#endif
+Time Time_from_ms( uint32_t ms )
+{
+	Time time = {
+		.ms    = ms,
+		.ticks = 0,
+	};
+	return time;
 }
 
 

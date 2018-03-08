@@ -12,6 +12,18 @@ if [ $# -eq 0 ]; then
 	echo "$0 <filename> [<key1> <key2>]"
 fi
 
+# Detect which OS
+case "$OSTYPE" in
+# macOS
+"darwin"*)
+	echo "${OSTYPE}/macOS uses gsed instead of sed."
+	SED=gsed
+	;;
+*)
+	SED=sed
+	;;
+esac
+
 input_file=${1}
 tmp_file=newbin.bin
 CLEARKEY=${CLEARKEY:-false}
@@ -43,8 +55,13 @@ cur_key=$(head -c 4 ${input_file} | hexdump -C | cut -b9- | cut -d"|" -f1 | tr -
 
 # Check if key is unset
 # 00200020 - mk20dx128vlf5
+# 00400020 - mk20dx128vlh7
 # 00800020 - mk20dx256vlh7
-if [ "${cur_key}" = "00800020" ] || [ "${cur_key}" = "00200020" ]; then
+# 00000120 - mk22fx512avlh12
+if [ "${cur_key}" = "00800020" ] \
+		|| [ "${cur_key}" = "00200020" ] \
+		|| [ "${cur_key}" = "00000120" ] \
+		|| [ "${cur_key}" = "00400020" ]; then
 	echo "Setting new key"
 else
 	# Check if CLEARKEY was set to true
@@ -75,7 +92,7 @@ echo "Key Prepended: ${output_key}"
 
 # 4 bytes at a time, then re-order to Little-Endian
 # XXX (HaaTa) This seems to not work on macOS (removing the tailing I breaks the formatting...)
-echo ${output_key}$(printf "%02032X" 0) | sed 's/\([0-9A-F]\{2\}\)\([0-9A-F]\{2\}\)\([0-9A-F]\{2\}\)\([0-9A-F]\{2\}\)/\\\\\\x\4\\\\\\x\3\\\\\\x\2\\\\\\x\1/gI' | xargs printf > ${tmp_file}
+echo ${output_key}$(printf "%02032X" 0) | ${SED} 's/\([0-9A-F]\{2\}\)\([0-9A-F]\{2\}\)\([0-9A-F]\{2\}\)\([0-9A-F]\{2\}\)/\\\\\\x\4\\\\\\x\3\\\\\\x\2\\\\\\x\1/gI' | xargs printf > ${tmp_file}
 
 # Append old file onto new one
 cat ${input_file} >> ${tmp_file}

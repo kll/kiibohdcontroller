@@ -1,4 +1,4 @@
-/* Copyright (C) 2014-2016 by Jacob Alexander
+/* Copyright (C) 2014-2017 by Jacob Alexander
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,9 @@
 #include <print.h>
 #include <macro.h>
 #include <kll.h>
+#if defined(Pixel_MapEnabled_define)
 #include <pixel.h>
+#endif
 
 // Local Includes
 #include "scan_loop.h"
@@ -54,16 +56,6 @@ CLIDict_Def( scanCLIDict, "Scan Module Commands" ) = {
 	{ 0, 0, 0 } // Null entry for dictionary end
 };
 
-// Number of scans since the last USB send
-uint16_t Scan_scanCount = 0;
-
-// TODO Better name, dynamically size
-typedef struct LED_Buffer {
-	uint16_t i2c_addr;
-	uint16_t reg_addr;
-	uint16_t buffer[144];
-} LED_Buffer;
-volatile LED_Buffer LED_pageBuffer[4];
 
 
 // ----- Functions -----
@@ -74,21 +66,31 @@ inline void Scan_setup()
 	// Register Scan CLI dictionary
 	CLI_registerDictionary( scanCLIDict, scanCLIDictName );
 
+#if defined(Pixel_MapEnabled_define)
 	// Setup Pixel Map
 	Pixel_setup();
-
-	// Reset scan count
-	Scan_scanCount = 0;
+#endif
 }
 
 
-// Main Detection Loop
-inline uint8_t Scan_loop()
+// Main Poll Loop
+// This is for operations that need to be run as often as possible
+// Usually reserved for LED update routines and other things that need quick update rates
+void Scan_poll()
 {
+#if defined(Pixel_MapEnabled_define)
 	// Prepare any LED events
 	Pixel_process();
+#endif
+}
 
-	return 0;
+
+// Main Periodic Scan
+// This function is called periodically at a constant rate
+// Useful for matrix scanning and anything that requires consistent attention
+uint8_t Scan_periodic()
+{
+	return 1;
 }
 
 
@@ -101,9 +103,6 @@ inline void Scan_finishedWithMacro( uint8_t sentKeys )
 // Signal from Output Module that all keys have been processed (that it knows about)
 inline void Scan_finishedWithOutput( uint8_t sentKeys )
 {
-	// Reset scan loop indicator (resets each key debounce state)
-	// TODO should this occur after USB send or Macro processing?
-	Scan_scanCount = 0;
 }
 
 
@@ -115,8 +114,8 @@ int Scan_addScanCode( uint8_t scanCode )
 {
 	// Add key event to macro key buffer
 	TriggerGuide guide = {
-		.type     = 0x00,
-		.state    = 0x01, // Press
+		.type     = TriggerType_Switch1,
+		.state    = ScheduleType_P, // Press
 		.scanCode = scanCode,
 	};
 
@@ -132,8 +131,8 @@ int Scan_removeScanCode( uint8_t scanCode )
 {
 	// Add key event to macro key buffer
 	TriggerGuide guide = {
-		.type     = 0x00,
-		.state    = 0x03, // Release
+		.type     = TriggerType_Switch1,
+		.state    = ScheduleType_R, // Release
 		.scanCode = scanCode,
 	};
 

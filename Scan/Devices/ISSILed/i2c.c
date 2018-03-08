@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Jan Rychter
- * Modifications (C) 2015-2017 Jacob Alexander
+ * Modifications (C) 2015-2018 Jacob Alexander
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files ( the "Software" ), to deal
@@ -48,10 +48,22 @@ uint32_t i2c_offset[] = {
 
 // ----- Functions -----
 
+// Initialize error counters
+void i2c_initial()
+{
+	for ( uint8_t ch = 0; ch < ISSI_I2C_Buses_define; ch++ )
+	{
+		volatile I2C_Channel *channel = &( i2c_channels[ch] );
+		channel->error_count = 0;
+		channel->last_error = 0; // No error to begin with (resets on successful transaction)
+	}
+}
+
 void i2c_setup()
 {
 	for ( uint8_t ch = 0; ch < ISSI_I2C_Buses_define; ch++ )
 	{
+#if defined(_kinetis_)
 		volatile uint8_t *I2C_F   = (uint8_t*)(&I2C0_F) + i2c_offset[ch];
 		volatile uint8_t *I2C_FLT = (uint8_t*)(&I2C0_FLT) + i2c_offset[ch];
 		volatile uint8_t *I2C_C1  = (uint8_t*)(&I2C0_C1) + i2c_offset[ch];
@@ -69,7 +81,7 @@ void i2c_setup()
 
 			break;
 
-#if defined(_mk20dx256_) || defined(_mk20dx256vlh7_)
+	#if defined(_kii_v2_)
 		case 1:
 			// Enable I2C internal clock
 			SIM_SCGC4 |= SIM_SCGC4_I2C1; // Bus 1
@@ -79,29 +91,35 @@ void i2c_setup()
 			PORTC_PCR11 = PORT_PCR_ODE | PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(2);
 
 			break;
-#endif
+	#endif
 		}
 
 		// SCL Frequency Divider
-#if ISSI_Chip_31FL3731_define == 1
-		// 0x40 -> 36 MHz / (4 * 28) = 321.428 kBaud
-		// 0x80 => mul(4)
-		// 0x00 => ICL(28)
-		*I2C_F = 0x84;
-		*I2C_FLT = 0x03;
-#elif ISSI_Chip_31FL3732_define == 1 || ISSI_Chip_31FL3733_define
+	#if ISSI_Chip_31FL3731_define == 1 && defined(_kii_v1_)
+		// 0x53 -> 48 MHz / (2 * 72) = 333.333 kBaud
+		// 0x40 => mul(2)
+		// 0x13 => ICR(30)
+		*I2C_F = 0x53;
+		*I2C_FLT = 0x05;
+	#elif ISSI_Chip_31FL3731_define == 1 && defined(_kii_v2_)
+		// 0x4E -> 36 MHz / (2 * 56) = 321.428 kBaud
+		// 0x40 => mul(2)
+		// 0x0E => ICR(56)
+		*I2C_F = 0x4E;
+		*I2C_FLT = 0x04;
+	#elif ISSI_Chip_31FL3732_define == 1 || ISSI_Chip_31FL3733_define == 1
 		/*
 		// Works
-		// 0x40 -> 36 MHz / (4 * 28) = 321.428 kBaud
+		// 0x84 -> 36 MHz / (4 * 28) = 321.428 kBaud
 		// 0x80 => mul(4)
-		// 0x00 => ICL(28)
+		// 0x04 => ICR(28)
 		*I2C_F = 0x84;
 		*I2C_FLT = 0x02;
 
 		// Also works, 80 fps, no errors (flicker?)
-		// 0x40 -> 36 MHz / (1 * 44) = 818.181 kBaud
-		// 0x80 => mul(1)
-		// 0x0C => ICL(44)
+		// 0x0C -> 36 MHz / (1 * 44) = 818.181 kBaud
+		// 0x00 => mul(1)
+		// 0x0C => ICR(44)
 		*I2C_F = 0x0C;
 		*I2C_FLT = 0x02; // Glitch protection, reduce if you see bus errors
 		*/
@@ -109,10 +127,10 @@ void i2c_setup()
 		// Also works, 86 fps, no errors, using frame delay of 50 us
 		// 0x40 -> 36 MHz / (2 * 20) = 900 kBaud
 		// 0x40 => mul(2)
-		// 0x00 => ICL(20)
+		// 0x00 => ICR(20)
 		*I2C_F = 0x40;
 		*I2C_FLT = 0x02;
-#endif
+	#endif
 		*I2C_C1 = I2C_C1_IICEN;
 		*I2C_C2 = I2C_C2_HDRS; // High drive select
 
@@ -121,17 +139,41 @@ void i2c_setup()
 		case 0:
 			// Enable I2C Interrupt
 			NVIC_ENABLE_IRQ( IRQ_I2C0 );
+
+			// Set priority below USB, but not too low to maintain performance
+			NVIC_SET_PRIORITY( IRQ_PIT_CH0, 150 );
 			break;
 
-#if defined(_mk20dx256_) || defined(_mk20dx256vlh7_)
+	#if defined(_kii_v2_)
 		case 1:
 
 			// Enable I2C Interrupt
 			NVIC_ENABLE_IRQ( IRQ_I2C1 );
+
+			// Set priority below USB, but not too low to maintain performance
+			NVIC_SET_PRIORITY( IRQ_PIT_CH1, 150 );
 			break;
+	#endif
+		}
+#elif defined(_sam_)
+		//SAM TODO
 #endif
+	}
+}
+
+// Checks if any bus has errored
+uint8_t i2c_error()
+{
+	for ( uint8_t ch = 0; ch < ISSI_I2C_Buses_define; ch++ )
+	{
+		volatile I2C_Channel *channel = &( i2c_channels[ch] );
+		if ( channel->status == I2C_ERROR )
+		{
+			return 1;
 		}
 	}
+
+	return 0;
 }
 
 void i2c_reset()
@@ -180,18 +222,30 @@ int32_t i2c_send_sequence(
 	void ( *callback_fn )( void* ),
 	void *user_data
 ) {
+	int32_t result = 0;
+
+#if defined(_kinetis_)
 	volatile I2C_Channel *channel = &( i2c_channels[ch] );
+	uint8_t status;
 
 	volatile uint8_t *I2C_C1  = (uint8_t*)(&I2C0_C1) + i2c_offset[ch];
 	volatile uint8_t *I2C_S   = (uint8_t*)(&I2C0_S) + i2c_offset[ch];
 	volatile uint8_t *I2C_D   = (uint8_t*)(&I2C0_D) + i2c_offset[ch];
 
-	int32_t result = 0;
-	uint8_t status;
-
 	if ( channel->status == I2C_BUSY )
 	{
 		return -1;
+	}
+
+	// Check if there are back-to-back errors
+	// in succession
+	if ( channel->last_error > 5 )
+	{
+		warn_msg("I2C Bus Error: ");
+		printInt8( ch );
+		print(" errors: ");
+		printInt32( channel->error_count );
+		print( NL );
 	}
 
 	// Debug
@@ -236,16 +290,25 @@ int32_t i2c_send_sequence(
 	return result;
 
 i2c_send_sequence_cleanup:
+	// Record error, and reset last error counter
+	channel->error_count++;
+	channel->last_error++;
+
+	// Generate STOP and disable further interrupts.
 	*I2C_C1 &= ~( I2C_C1_IICIE | I2C_C1_MST | I2C_C1_TX );
 	channel->status = I2C_ERROR;
+#elif defined(_sam_)
+	//SAM TODO
+#endif
+
 	return result;
 }
 
 
 void i2c_isr( uint8_t ch )
 {
+#if defined(_kinetis_)
 	volatile I2C_Channel* channel = &i2c_channels[ch];
-
 	volatile uint8_t *I2C_C1  = (uint8_t*)(&I2C0_C1) + i2c_offset[ch];
 	volatile uint8_t *I2C_S   = (uint8_t*)(&I2C0_S) + i2c_offset[ch];
 	volatile uint8_t *I2C_D   = (uint8_t*)(&I2C0_D) + i2c_offset[ch];
@@ -261,9 +324,11 @@ void i2c_isr( uint8_t ch )
 	// Arbitration problem
 	if ( status & I2C_S_ARBL )
 	{
+		/* XXX (HaaTa) I2C Debugging
 		warn_msg("Arbitration error. Bus: ");
 		printHex( ch );
 		print(NL);
+		*/
 
 		*I2C_S |= I2C_S_ARBL;
 		goto i2c_isr_error;
@@ -393,6 +458,7 @@ void i2c_isr( uint8_t ch )
 	}
 
 	channel->sequence++;
+	channel->last_error = 0; // No error
 	return;
 
 i2c_isr_stop:
@@ -403,18 +469,28 @@ i2c_isr_stop:
 	// Call the user-supplied callback function upon successful completion (if it exists).
 	if ( channel->callback_fn )
 	{
-		// Delay 10 microseconds before starting linked function
-		// TODO, is this chip dependent? -HaaTa
-		delayMicroseconds(10);
+		// Delay before starting linked function
+#if ISSI_Chip_31FL3731_define == 1 || ISSI_Chip_31FL3732_define == 1
+		delay_us(25);
+#elif ISSI_Chip_31FL3733_define == 1
+		delay_us(10);
+#endif
 		( *channel->callback_fn )( channel->user_data );
 	}
 	return;
 
 i2c_isr_error:
+	// Record error, and reset last error counter
+	channel->error_count++;
+	channel->last_error++;
+
 	// Generate STOP and disable further interrupts.
 	*I2C_C1 &= ~( I2C_C1_MST | I2C_C1_IICIE );
 	channel->status = I2C_ERROR;
 	return;
+#elif defined(_sam_)
+	//SAM TODO
+#endif
 }
 
 void i2c0_isr()

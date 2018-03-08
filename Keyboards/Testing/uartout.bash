@@ -16,7 +16,7 @@ BuildPath="UART"
 ## KLL Configuration ##
 
 # Generally shouldn't be changed, this will affect every layer
-BaseMap="scancode_map"
+BaseMap="scancode_map.alphabet"
 
 # This is the default layer of the keyboard
 # NOTE: To combine kll files into a single layout, separate them by spaces
@@ -43,10 +43,9 @@ PartialMaps[2]="colemak"
 # NOTE: Changing any of these variables will require a force build to compile correctly
 
 # Keyboard Module Configuration
-ScanModule="MD1"
-#ScanModule="Infinity_60%" # XXX Ninja build generator has issues with %'s in filenames...
+ScanModule="Infinity_60"
 MacroModule="PartialMap"
-OutputModule="uartOut"
+OutputModule="UARTOut"
 DebugModule="full"
 
 # Microcontroller

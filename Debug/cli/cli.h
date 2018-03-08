@@ -42,7 +42,7 @@
 
 // AVR CLI Dictionary definitions (has to deal with the annoying PROGMEM
 // Only using PROGMEM with descriptions (all the string comparison tools need to be re-written otherwise)
-#if defined(_at90usb162_) || defined(_atmega32u4_) || defined(_at90usb646_) || defined(_at90usb1286_) // AVR
+#if defined(_avr_at) // AVR
 #define CLIDict_Def(name,description) \
 	const PROGMEM char name##Name[] = description; \
 	const CLIDictItem name[]
@@ -123,7 +123,9 @@ void cliFunc_cliDebug ( char* args );
 void cliFunc_colorTest( char* args );
 void cliFunc_exit     ( char* args );
 void cliFunc_help     ( char* args );
+void cliFunc_latency  ( char* args );
 void cliFunc_led      ( char* args );
+void cliFunc_periodic ( char* args );
 void cliFunc_rand     ( char* args );
 void cliFunc_reload   ( char* args );
 void cliFunc_reset    ( char* args );

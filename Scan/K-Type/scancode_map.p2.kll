@@ -102,7 +102,7 @@ S0x57 : U"LAlt";
 S0x58 : U"Space";
 S0x59 : U"RAlt";
 S0x5A : U"RGui";
-S0x5B : U"Menu";
+S0x5B : U"App";
 S0x5C : U"RCtrl";
 S0x5D : U"Left";
 S0x5E : U"Down";
@@ -111,6 +111,10 @@ S0x5F : U"Right";
 
 ### TODO REMOVEME
 flashModeEnabled = 1;
+
+
+# Latency Resources
+latencyResources = 10;
 
 
 # Driver Chip
@@ -134,6 +138,10 @@ LED_MapCh3_Bus  = 0x1;
 LED_MapCh3_Addr = ISSI_Ch1;
 LED_MapCh4_Bus  = 0x1;
 LED_MapCh4_Addr = ISSI_Ch2;
+
+# Channel Optimizations
+Pixel_HardCode_ChanWidth = 8;
+Pixel_HardCode_Channels = 3;
 
 
 # FPS Target
@@ -210,6 +218,16 @@ Pixel_Buffer_Buffer[0] = "LED_pageBuffer[0].buffer"; # Pointer to the start of t
 Pixel_Buffer_Buffer[1] = "LED_pageBuffer[1].buffer";
 Pixel_Buffer_Buffer[2] = "LED_pageBuffer[2].buffer";
 Pixel_Buffer_Buffer[3] = "LED_pageBuffer[3].buffer";
+
+# I2C LED Struct Definition
+LED_BufferStruct = "
+typedef struct LED_Buffer {
+	uint16_t i2c_addr;
+	uint16_t reg_addr;
+	uint16_t buffer[144];
+} LED_Buffer;
+volatile LED_Buffer LED_pageBuffer[ ISSI_Chips_define ];
+";
 
 
 

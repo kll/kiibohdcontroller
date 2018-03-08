@@ -22,11 +22,15 @@
 // ----- Includes -----
 
 // Project Includes
+#include <Lib/mcu_compat.h>
+#include <Lib/chip_version.h>
 #include <Lib/entropy.h>
+#include <Lib/periodic.h>
 #include <Lib/time.h>
 
 // General Includes
 #include <buildvars.h>
+#include <latency.h>
 #include <led.h>
 #include <print.h>
 
@@ -48,7 +52,9 @@ CLIDict_Entry( colorTest, "Displays a True Color ANSI test sequence to test term
 CLIDict_Entry( exit,      "Host KLL Only - Exits cli." );
 #endif
 CLIDict_Entry( help,      "You're looking at it :P" );
+CLIDict_Entry( latency,   "Show latency of specific modules and routiines. Specify index for a single item" );
 CLIDict_Entry( led,       "Enables/Disables indicator LED. Try a couple times just in case the LED is in an odd state.\r\n\t\t\033[33mWarning\033[0m: May adversely affect some modules..." );
+CLIDict_Entry( periodic,  "Set the number of clock cycles between periodic scans." );
 CLIDict_Entry( rand,      "If entropy available, print a random 32-bit number." );
 CLIDict_Entry( reload,    "Signals microcontroller to reflash/reload." );
 CLIDict_Entry( reset,     "Resets the terminal back to initial settings." );
@@ -64,7 +70,9 @@ CLIDict_Def( basicCLIDict, "General Commands" ) = {
 	CLIDict_Item( exit ),
 #endif
 	CLIDict_Item( help ),
+	CLIDict_Item( latency ),
 	CLIDict_Item( led ),
+	CLIDict_Item( periodic ),
 	CLIDict_Item( rand ),
 	CLIDict_Item( reload ),
 	CLIDict_Item( reset ),
@@ -562,10 +570,81 @@ void cliFunc_help( char* args )
 	}
 }
 
+void printLatency( uint8_t resource )
+{
+	printInt8( resource );
+	print(":");
+	print( Latency_query_name( resource ) );
+	print("\t");
+	printInt32( Latency_query( LatencyQuery_Count, resource ) );
+	print("\t");
+	printInt32( Latency_query( LatencyQuery_Min, resource ) );
+	print("\t");
+	printInt32( Latency_query( LatencyQuery_Average, resource ) );
+	print("\t");
+	printInt32( Latency_query( LatencyQuery_Last, resource ) );
+	print("\t");
+	printInt32( Latency_query( LatencyQuery_Max, resource ) );
+}
+
+void cliFunc_latency( char* args )
+{
+	// Parse number from argument
+	//  NOTE: Only first argument is used
+	char* arg1Ptr;
+	char* arg2Ptr;
+	CLI_argumentIsolation( args, &arg1Ptr, &arg2Ptr );
+
+	print( NL );
+	print("Latency" NL );
+	print("<i>:<module>\t<count>\t<min>\t<avg>\t<last>\t<max>");
+
+	// If no arguments print all
+	if ( arg1Ptr[0] == '\0' )
+	{
+		// Iterate through all the latency resources
+		for ( uint8_t c = 0; c < Latency_resources(); c++ )
+		{
+			print( NL );
+			printLatency( c );
+		}
+	}
+	else
+	{
+		print( NL );
+		if ( arg1Ptr[0] < Latency_resources() )
+		{
+			printLatency( arg1Ptr[0] );
+		}
+	}
+}
+
 void cliFunc_led( char* args )
 {
 	CLILEDState ^= 1 << 1; // Toggle between 0 and 1
 	errorLED( CLILEDState ); // Enable/Disable error LED
+}
+
+void cliFunc_periodic( char* args )
+{
+	// Parse number from argument
+	//  NOTE: Only first argument is used
+	char* arg1Ptr;
+	char* arg2Ptr;
+	CLI_argumentIsolation( args, &arg1Ptr, &arg2Ptr );
+	print( NL );
+
+	// Set clock cycles if an argument is given
+	if ( arg1Ptr[0] != '\0' )
+	{
+		uint32_t cycles = (uint32_t)numToInt( arg1Ptr );
+
+		Periodic_init( cycles );
+	}
+
+	// Show number of clock cycles between periods
+	info_msg("Period Clock Cycles: ");
+	printInt32( Periodic_cycles() );
 }
 
 void cliFunc_rand( char* args )
@@ -629,29 +708,95 @@ void cliFunc_tick( char* args )
 void cliFunc_version( char* args )
 {
 	print( NL );
-	print( " \033[1mRevision:\033[0m      " CLI_Revision       NL );
-	print( " \033[1mBranch:\033[0m        " CLI_Branch         NL );
+	print( " \033[1mRevision:\033[0m      " CLI_Revision          NL );
+	print( " \033[1mRevision #:\033[0m    " CLI_RevisionNumberStr NL );
+	print( " \033[1mVersion:\033[0m       " CLI_Version " (+" );
+#if CLI_RevisionNumber && CLI_VersionRevNumber
+	printInt16( CLI_RevisionNumber - CLI_VersionRevNumber );
+#endif
+	print( ":" CLI_VersionRevNumberStr ")" NL );
+	print( " \033[1mBranch:\033[0m        " CLI_Branch            NL );
 	print( " \033[1mTree Status:\033[0m   " CLI_ModifiedStatus CLI_ModifiedFiles NL );
-	print( " \033[1mRepo Origin:\033[0m   " CLI_RepoOrigin     NL );
-	print( " \033[1mCommit Date:\033[0m   " CLI_CommitDate     NL );
-	print( " \033[1mCommit Author:\033[0m " CLI_CommitAuthor   NL );
-	print( " \033[1mBuild Date:\033[0m    " CLI_BuildDate      NL );
-	print( " \033[1mBuild OS:\033[0m      " CLI_BuildOS        NL );
-	print( " \033[1mArchitecture:\033[0m  " CLI_Arch           NL );
-	print( " \033[1mChip:\033[0m          " CLI_Chip           NL );
-	print( " \033[1mCPU:\033[0m           " CLI_CPU            NL );
-	print( " \033[1mDevice:\033[0m        " CLI_Device         NL );
-	print( " \033[1mModules:\033[0m       " CLI_Modules        NL );
-#if defined(_mk20dx128_) || defined(_mk20dx128vlf5_) || defined(_mk20dx256_) || defined(_mk20dx256vlh7_)
+	print( " \033[1mRepo Origin:\033[0m   " CLI_RepoOrigin        NL );
+	print( " \033[1mCommit Date:\033[0m   " CLI_CommitDate        NL );
+	print( " \033[1mCommit Author:\033[0m " CLI_CommitAuthor      NL );
+	print( " \033[1mBuild Date:\033[0m    " CLI_BuildDate         NL );
+	print( " \033[1mBuild OS:\033[0m      " CLI_BuildOS           NL );
+	print( " \033[1mCompiler:\033[0m      " CLI_BuildCompiler     NL );
+	print( " \033[1mArchitecture:\033[0m  " CLI_Arch              NL );
+	print( " \033[1mChip Compiled:\033[0m " CLI_ChipShort " (" CLI_Chip ")" NL );
+	print( " \033[1mCPU:\033[0m           " CLI_CPU               NL );
+	print( " \033[1mDevice:\033[0m        " CLI_Device            NL );
+	print( " \033[1mModules:\033[0m       " CLI_Modules           NL );
+#if defined(_teensy_)
+	print( " \033[1mTeensy:\033[0m        Yes"                    NL );
+#endif
+#if defined(_kinetis_)
+	print( NL );
+	print( " \033[1mCPU Detected:\033[0m  " );
+	print( ChipVersion_lookup() );
+	print( NL);
+
+	print( " \033[1mCPU Id:\033[0m        " );
+	printHex32( SCB_CPUID );
+	print( NL "  (Implementor:");
+	print( ChipVersion_cpuid_implementor() );
+	print( ":" );
+	printHex32( SCB_CPUID_IMPLEMENTOR );
+	print( ")(Variant:" );
+	printHex32( SCB_CPUID_VARIANT );
+	print( ")(Arch:" );
+	printHex32( SCB_CPUID_ARCH );
+	print( ")(PartNo:" );
+	print( ChipVersion_cpuid_partno() );
+	print( ":" );
+	printHex32( SCB_CPUID_PARTNO );
+	print( ")(Revision:" );
+	printHex32( SCB_CPUID_REVISION );
+	print( ")" NL );
+
+	print( " \033[1mDevice Id:\033[0m     " );
+	printHex32( SIM_SDID );
+	print( NL "  (Pincount:");
+	print( ChipVersion_pincount[ SIM_SDID_PINID ] );
+	print( ":" );
+	printHex32( SIM_SDID_PINID );
+	print( ")(Family:" );
+	print( ChipVersion_familyid[ SIM_SDID_FAMID ] );
+	print( ":" );
+	printHex32( SIM_SDID_FAMID );
+	print( ")(Die:" );
+	printHex32( SIM_SDID_DIEID );
+	print( ")(Rev:" );
+	printHex32( SIM_SDID_REVID );
+	print( ")" NL );
+
+	print( " \033[1mFlash Cfg:\033[0m     " );
+	printHex32( SIM_FCFG1 & 0xFFFFFFF0 );
+	print( NL "  (FlexNVM:" );
+	printInt16( ChipVersion_nvmsize[ SIM_FCFG1_NVMSIZE ] );
+	print( "kB)(PFlash:" );
+	printInt16( ChipVersion_pflashsize[ SIM_FCFG1_PFSIZE ] );
+	print( "kB)(EEPROM:" );
+	printInt16( ChipVersion_eepromsize[ SIM_FCFG1_EESIZE ] );
+	print( ")(DEPART:" );
+	printHex32( SIM_FCFG1_DEPART );
+	print( ")" NL );
+
+	print( " \033[1mRAM:\033[0m           ");
+	printInt16( ChipVersion_ramsize[ SIM_SOPT1_RAMSIZE ] );
+	print( " kB" NL );
+
 	print( " \033[1mUnique Id:\033[0m     " );
 	printHex32_op( SIM_UIDH, 8 );
 	printHex32_op( SIM_UIDMH, 8 );
 	printHex32_op( SIM_UIDML, 8 );
 	printHex32_op( SIM_UIDL, 8 );
-#elif defined(_at90usb162_) || defined(_atmega32u4_) || defined(_at90usb646_) || defined(_at90usb1286_)
+#elif defined(_sam_)
+#elif defined(_avr_at_)
 #elif defined(_host_)
 #else
-#error "No unique id defined."
+#warning "No unique id defined."
 #endif
 }
 

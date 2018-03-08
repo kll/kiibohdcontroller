@@ -6,7 +6,7 @@ Author = "HaaTa (Jacob Alexander) 2017";
 KLL = 0.5;
 
 # Modified Date
-Date = 2017-11-14;
+Date = 2017-11-26;
 
 
 # Function Row (1-19)
@@ -140,6 +140,10 @@ LED_MapCh1_Addr = ISSI_Ch1;
 LED_MapCh2_Bus  = 0x1;
 LED_MapCh2_Addr = ISSI_Ch1;
 
+# Channel Optimizations
+Pixel_HardCode_ChanWidth = 8;
+Pixel_HardCode_Channels = 3;
+
 
 # FPS Target
 # Each ISSI chip setup has a different optimal framerate.
@@ -187,7 +191,7 @@ typedef struct LED_Buffer {
 	uint16_t reg_addr;
 	uint16_t buffer[192];
 } LED_Buffer;
-extern LED_Buffer LED_pageBuffer[ ISSI_Chips_define ];
+volatile LED_Buffer LED_pageBuffer[ ISSI_Chips_define ];
 ";
 
 

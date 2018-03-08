@@ -1,11 +1,11 @@
 ###| CMAKE Kiibohd Controller |###
 #
-# Jacob Alexander 2011-2017
+# Jacob Alexander 2011-2018
 # Due to this file's usefulness:
 #
 # Released into the Public Domain
 #
-# Freescale ARM CMake Build Configuration
+# ARM CMake Build Configuration
 #
 ###
 
@@ -66,83 +66,32 @@ endif ()
 #
 
 #| Chip Name (Linker)
-#|
-#| "mk20dx128vlf5"    # McHCK / Kiibohd-dfu
-#| "mk20dx256vlh7"    # Kiibohd-dfu
-#| "mk20dx128"        # Teensy   3.0
-#| "mk20dx256"        # Teensy   3.1
-
 message( STATUS "Chip Selected:" )
 message( "${CHIP}" )
 set( MCU "${CHIP}" ) # For loading script compatibility
 
+#| Kinetis
+if ( "${CHIP}" MATCHES "^mk.*$" )
+	include( kinetis )
 
-#| Chip Size and CPU Frequency Database
-#| Processor frequency.
-#|   Normally the first thing your program should do is set the clock prescaler,
-#|   so your program will run at the correct speed.  You should also set this
-#|   variable to same clock speed.  The _delay_ms() macro uses this, and many
-#|   examples use this variable to calculate timings.  Do not add a "UL" here.
-#| MCHCK Based / Kiibohd-dfu
-if ( "${CHIP}" MATCHES "mk20dx128vlf5" )
-	set( SIZE_RAM    16384 )
-	#set( SIZE_FLASH 126976 ) # XXX (HaaTa) Old size, still valid for nearly all keyboards
-	set( SIZE_FLASH 122880 ) # For extended bootloader (8kB)
-	set( F_CPU "48000000" )
+#| SAM
+elseif ( "${CHIP}" MATCHES "^sam.*$" )
+	include( sam )
 
-	# Bootloader has a lower flash restriction to fit inside protected area
-	if ( BOOTLOADER )
-		#set( SIZE_FLASH 4096 ) # XXX (HaaTa) Old size
-		set( SIZE_FLASH 8192 ) # XXX (HaaTa) Old size
-	endif ()
+#| nRF
+elseif ( "${CHIP}" MATCHES "^nrf5.*$" )
+	include( nrf5 )
 
-#| Kiibohd-dfu
-elseif ( "${CHIP}" MATCHES "mk20dx256vlh7" )
-	set( SIZE_RAM    65536 )
-	set( SIZE_FLASH 253952 )
-	set( F_CPU "72000000" )
-
-	# Bootloader has a lower flash restriction to fit inside protected area
-	if ( BOOTLOADER )
-		set( SIZE_FLASH 8192 )
-	endif ()
-
-#| Teensy 3.0
-elseif ( "${CHIP}" MATCHES "mk20dx128" )
-	set( SIZE_RAM    16384 )
-	set( SIZE_FLASH 131072 )
-	set( F_CPU "48000000" )
-
-#| Teensy 3.1
-elseif ( "${CHIP}" MATCHES "mk20dx256" )
-	set( SIZE_RAM    65536 )
-	set( SIZE_FLASH 262144 )
-	set( F_CPU "48000000" ) # XXX Also supports 72 MHz, but may requires code changes
-
-#| Unknown ARM
+#| Unknown
 else ()
-	message( AUTHOR_WARNING "CHIP: ${CHIP} - Unknown ARM microcontroller" )
+	message( FATAL_ERROR "CHIP: ${CHIP} - Unknown ARM microcontroller" )
 endif ()
-
 
 #| Chip Base Type
-#| Automatically chosed based on the chip name.
-if ( "${CHIP}" MATCHES "^mk20dx.*$" )
-	set( CHIP_FAMILY "mk20dx" )
-	message( STATUS "Chip Family:" )
-	message( "${CHIP_FAMILY}" )
-else ()
-	message( FATAL_ERROR "Unknown chip family: ${CHIP}" )
-endif ()
-
+message( STATUS "Chip Family:" )
+message( "${CHIP_FAMILY}" )
 
 #| CPU Type
-#| You _MUST_ set this to match the board you are using
-#| type "make clean" after changing this, so all files will be rebuilt
-#|
-#| "cortex-m4"        # Teensy   3.0, 3.1, McHCK
-set( CPU "cortex-m4" )
-
 message( STATUS "CPU Selected:" )
 message( "${CPU}" )
 
@@ -150,9 +99,10 @@ message( "${CPU}" )
 #| Extra Compiler Sources
 #| Mostly for convenience functions like interrupt handlers
 set( COMPILER_SRCS
-	Lib/${CHIP_FAMILY}.c
+	Lib/${CHIP_SUPPORT}.c
 	Lib/delay.c
 	Lib/entropy.c
+	Lib/periodic.c
 	Lib/time.c
 )
 
@@ -169,25 +119,21 @@ message( "${COMPILER_SRCS}" )
 
 #| USB Defines, this is how the loader programs detect which type of chip base is used
 message( STATUS "Bootloader Type:" )
-if ( "${CHIP}" MATCHES "mk20dx128vlf5" OR "${CHIP}" MATCHES "mk20dx256vlh7" )
+if ( DFU )
 	set( VENDOR_ID       "0x1C11" )
 	set( PRODUCT_ID      "0xB04D" )
 	set( BOOT_VENDOR_ID  "0x1C11" )
 	set( BOOT_PRODUCT_ID "0xB007" )
-	if ( "${CHIP}" MATCHES "mk20dx128vlf5" )
-		set( BOOT_DFU_ALTNAME "Kiibohd DFU" )
-	else ()
-		# The | symbol is replaced by a space if in secure mode, or a \0 if not (at runtime)
-		set( BOOT_DFU_ALTNAME "Kiibohd DFU|Secure" )
-	endif ()
-	set( DFU 1 )
+
+	# The | symbol is replaced by a space if in secure mode, or a \0 if not (at runtime)
+	set( BOOT_DFU_ALTNAME "Kiibohd DFU|Secure" )
+
 	message( "dfu" )
-elseif ( "${CHIP}" MATCHES "mk20dx128" OR "${CHIP}" MATCHES "mk20dx256" )
+elseif ( TEENSY )
 	set( VENDOR_ID       "0x1C11" )
 	set( PRODUCT_ID      "0xB04D" )
 	set( BOOT_VENDOR_ID  "0x16c0" ) # TODO Double check, this is likely incorrect
 	set( BOOT_PRODUCT_ID "0x0487" )
-	set( TEENSY 1 )
 	message( "Teensy" )
 endif ()
 
@@ -240,7 +186,11 @@ endif ()
 #| Optimization level, can be [0, 1, 2, 3, s].
 #|     0 = turn off optimization. s = optimize for size.
 #|     (Note: 3 is not always the best optimization level.)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+set( OPT "0" )
+else ()
 set( OPT "s" )
+endif ()
 
 
 #| Compiler Flags
@@ -250,14 +200,14 @@ add_definitions( "-mcpu=${CPU} -DF_CPU=${F_CPU} -D_${CHIP}_=1 -O${OPT} ${TUNING}
 #| Linker Flags
 if ( BOOTLOADER )
 	# Bootloader linker flags
-	set( LINKER_FLAGS "${TUNING} -Wl,--gc-sections -fwhole-program -T${CMAKE_CURRENT_SOURCE_DIR}/../Lib/${CHIP}.bootloader.ld -nostartfiles -Wl,-Map=link.map" )
+	set( LINKER_FLAGS "${TUNING} -Wl,--gc-sections -fwhole-program -T${CMAKE_CURRENT_SOURCE_DIR}/../Lib/ld/${CHIP}.bootloader.ld -nostartfiles -Wl,-Map=link.map" )
 else ()
 	## Clang Compiler
 	if ( "${COMPILER}" MATCHES "clang" )
-		set( LINKER_FLAGS "${TUNING} -Wl,-Map=link.map,--cref -Wl,--gc-sections -Wl,--no-wchar-size-warning -T${CMAKE_CURRENT_SOURCE_DIR}/Lib/${CHIP}.ld" )
+		set( LINKER_FLAGS "${TUNING} -Wl,-Map=link.map,--cref -Wl,--gc-sections -Wl,--no-wchar-size-warning -T${CMAKE_CURRENT_SOURCE_DIR}/Lib/ld/${CHIP}.ld" )
 	else ()
 		# Normal linker flags
-		set( LINKER_FLAGS "${TUNING} -Wl,-Map=link.map,--cref -Wl,--gc-sections -Wl,--no-wchar-size-warning -T${CMAKE_CURRENT_SOURCE_DIR}/Lib/${CHIP}.ld" )
+		set( LINKER_FLAGS "${TUNING} -Wl,-Map=link.map,--cref -Wl,--gc-sections -Wl,--no-wchar-size-warning -T${CMAKE_CURRENT_SOURCE_DIR}/Lib/ld/${CHIP}.ld" )
 	endif ()
 endif ()
 

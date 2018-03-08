@@ -24,6 +24,11 @@ else ()
 	message( AUTHOR_WARNING "COMPILER: ${COMPILER} - Unknown compiler selection" )
 endif ()
 
+# If Apple and gcc, then this is actually clang
+if ( APPLE AND "${COMPILER}" MATCHES "gcc" )
+	set( COMPILER "clang" )
+endif ()
+
 
 
 ###
@@ -45,6 +50,7 @@ set( HOST 1 )
 set( COMPILER_SRCS
 	Lib/entropy.c
 	Lib/host.c
+	Lib/periodic.c
 	Lib/time.c
 )
 
@@ -85,14 +91,15 @@ if ( "${COMPILER}" MATCHES "clang" )
 	endif ()
 
 	# Set compiler utilities for clang on macOS
+	# Requires homebrew binutils
 	if ( APPLE )
-		set ( CMAKE_OBJDUMP objdump )
-		set ( CMAKE_NM nm )
+		set ( CMAKE_OBJDUMP gobjdump )
+		set ( CMAKE_NM gnm )
 	endif ()
 
 #| GCC Compiler
 else()
-	if ( APPLE )
+	if ( "${DETECTED_BUILD_KERNEL}" MATCHES "CYGWIN" )
 		set( TUNING "-fshort-enums -fdata-sections -ffunction-sections -fshort-wchar -fno-builtin -nostartfiles" )
 	else ()
 		set( TUNING "-nostdlib -fshort-enums -fdata-sections -ffunction-sections -fshort-wchar -fno-builtin -nostartfiles" )
@@ -124,14 +131,14 @@ add_definitions( -D_host_=1 ${OS_TUNING} ${TUNING} ${WARN} ${CSTANDARD} )
 
 #| Linker Flags
 if ( APPLE )
-	set( LINKER_FLAGS "${TUNING} -lcrt1.o" )
+	set( LINKER_FLAGS "${TUNING}" )
 else ()
 	set( LINKER_FLAGS "${TUNING} -Wl,-Map=link.map,--cref -Wl,--gc-sections" )
 endif ()
 
 
 #| Lss Flags
-if ( "${COMPILER}" MATCHES "clang" OR APPLE )
+if ( "${COMPILER}" MATCHES "clang" AND NOT APPLE )
 	set( LSS_FLAGS -section-headers )
 else ()
 	set( LSS_FLAGS -h -S -z )

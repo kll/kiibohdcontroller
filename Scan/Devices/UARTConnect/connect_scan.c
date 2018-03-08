@@ -1,4 +1,4 @@
-/* Copyright (C) 2014-2016 by Jacob Alexander
+/* Copyright (C) 2014-2017 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 // Project Includes
 #include <cli.h>
 #include <kll_defs.h>
+#include <latency.h>
 #include <led.h>
 #include <print.h>
 #include <macro.h>
@@ -167,6 +168,9 @@ CLIDict_Def( uartConnectCLIDict, "UARTConnect Module Commands" ) = {
 	{ 0, 0, 0 } // Null entry for dictionary end
 };
 
+// Latency measurement resource
+static uint8_t connectLatencyResource;
+
 
 // -- Connect Device Id Variables --
 uint8_t Connect_id = 255; // Invalid, unset
@@ -218,7 +222,7 @@ void Connect_addBytes( uint8_t *buffer, uint8_t count, uint8_t uart )
 		warn_msg("Too much data to send on UART");
 		printInt8( uart );
 		print( ", waiting..." NL );
-		delay( 1 );
+		delay_ms( 1 );
 		// FIXME Buffer will not drain here....
 	}
 
@@ -323,7 +327,7 @@ void Connect_send_IdReport( uint8_t id )
 // id is the currently assigned id to the slave
 // scanCodeStateList is an array of [scancode, state]'s (8 bit values)
 // numScanCodes is the number of scan codes to parse from array
-void Connect_send_ScanCode( uint8_t id, TriggerGuide *scanCodeStateList, uint8_t numScanCodes )
+void Connect_send_ScanCode( uint8_t id, TriggerEvent *scanCodeStateList, uint8_t numScanCodes )
 {
 	// Lock master bound Tx
 	uart_lockTx( UART_Master );
@@ -899,6 +903,7 @@ void Connect_setup( uint8_t master, uint8_t first )
 	if ( Connect_master )
 		Connect_id = 0; // 0x00 is always the master Id
 
+#if defined(_kinetis_)
 	// UART0 setup
 	// UART1 setup
 	// Setup the the UART interface for keyboard data input
@@ -1007,12 +1012,18 @@ void Connect_setup( uint8_t master, uint8_t first )
 	// Add interrupts to the vector table
 	NVIC_ENABLE_IRQ( IRQ_UART0_STATUS );
 	NVIC_ENABLE_IRQ( IRQ_UART1_STATUS );
+#elif defined(_sam_)
+	//SAM TODO
+#endif
 
 	// UARTs are now ready to go
 	uarts_configured = 1;
 
 	// Reset the state of the UART variables
 	Connect_reset();
+
+	// Allocate latency measurement resource
+	connectLatencyResource = Latency_add_resource("UARTConnect", LatencyOption_Ticks);
 }
 
 
@@ -1026,8 +1037,12 @@ void Connect_rx_process( uint8_t uartNum )
 	uint16_t bufpos = 0;
 	switch ( uartNum )
 	{
+#if defined(_kinetis_)
 	DMA_BUF_POS( 0, bufpos );
 	DMA_BUF_POS( 1, bufpos );
+#elif defined(_sam_)
+	//SAM TODO
+#endif
 	}
 
 	// Process each of the new bytes
@@ -1160,6 +1175,9 @@ void Connect_rx_process( uint8_t uartNum )
 // - SyncEvent is also blocking until sent
 void Connect_scan()
 {
+	// Latency measurement start
+	Latency_start_time( connectLatencyResource );
+
 	// Check if initially configured as a slave and usb comes up
 	// Then reconfigure as a master
 	if ( !Connect_master && Output_Available && !Connect_override )
@@ -1194,15 +1212,22 @@ void Connect_scan()
 	{
 		// Check if Tx Buffers are empty and the Tx Ring buffers have data to send
 		// This happens if there was previously nothing to send
+#if defined(_kinetis_)
 		if ( uart_tx_buf[ 0 ].items > 0 && UART0_TCFIFO == 0 )
 			uart_fillTxFifo( 0 );
 		if ( uart_tx_buf[ 1 ].items > 0 && UART1_TCFIFO == 0 )
 			uart_fillTxFifo( 1 );
+#elif defined(_sam_)
+		//SAM TODO
+#endif
 
 		// Process Rx Buffers
 		Connect_rx_process( 0 );
 		Connect_rx_process( 1 );
 	}
+
+	// Latency measurement end
+	Latency_end_time( connectLatencyResource );
 }
 
 
@@ -1246,7 +1271,7 @@ void cliFunc_connectCmd( char* args )
 
 	case ScanCode:
 	{
-		TriggerGuide scanCodes[] = { { 0x00, 0x01, 0x05 }, { 0x00, 0x03, 0x16 } };
+		TriggerEvent scanCodes[] = { { 0x00, 0x01, 0x05 }, { 0x00, 0x03, 0x16 } };
 		Connect_send_ScanCode( 10, scanCodes, 2 );
 		break;
 	}

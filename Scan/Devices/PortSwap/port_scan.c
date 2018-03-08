@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2017 by Jacob Alexander
+/* Copyright (C) 2015-2018 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,13 +22,14 @@
 // Project Includes
 #include <cli.h>
 #include <kll_defs.h>
+#include <latency.h>
 #include <led.h>
 #include <print.h>
 
 // USB Includes
-#if defined(_at90usb162_) || defined(_atmega32u4_) || defined(_at90usb646_) || defined(_at90usb1286_)
+#if defined(_avr_at_)
 #include <avr/usb_keyboard_serial.h>
-#elif defined(_mk20dx128_) || defined(_mk20dx128vlf5_) || defined(_mk20dx256_) || defined(_mk20dx256vlh7_)
+#elif defined(_kinetis_) || defined(_sam_) //AVR
 #include <arm/usb_dev.h>
 #endif
 
@@ -73,6 +74,9 @@ CLIDict_Def( portCLIDict, "Port Swap Module Commands" ) = {
 	{ 0, 0, 0 } // Null entry for dictionary end
 };
 
+// Latency measurement resource
+static uint8_t portLatencyResource;
+
 
 
 // ----- Functions -----
@@ -82,7 +86,11 @@ void Port_usb_swap()
 	info_print("USB Port Swap");
 
 	// PTA4 - USB Swap
+#if defined(_kinetis_)
 	GPIOA_PTOR |= (1<<4);
+#elif defined(_sam_)
+	//SAM TODO
+#endif
 
 	// Re-initialize usb
 	// Call usb_configured() to check if usb is ready
@@ -94,7 +102,11 @@ void Port_uart_swap()
 	info_print("Interconnect Line Swap");
 
 	// PTA13 - UART Swap
+#if defined(_kinetis_)
 	GPIOA_PTOR |= (1<<13);
+#elif defined(_sam_)
+	//SAM TODO
+#endif
 }
 
 void Port_cross()
@@ -102,7 +114,11 @@ void Port_cross()
 	info_print("Interconnect Line Cross");
 
 	// PTA12 - UART Tx/Rx cross-over
+#if defined(_kinetis_)
 	GPIOA_PTOR |= (1<<12);
+#elif defined(_sam_)
+	//SAM TODO
+#endif
 
 	// Reset interconnects
 	Connect_reset();
@@ -114,6 +130,7 @@ inline void Port_setup()
 	// Register Scan CLI dictionary
 	CLI_registerDictionary( portCLIDict, portCLIDictName );
 
+#if defined(_kinetis_)
 	// PTA4 - USB Swap
 	// Start, disabled
 	GPIOA_PDDR |= (1<<4);
@@ -131,14 +148,23 @@ inline void Port_setup()
 	GPIOA_PDDR |= (1<<13);
 	PORTA_PCR13 = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1);
 	GPIOA_PCOR |= (1<<13);
+#elif defined(_sam_)
+	//SAM TODO
+#endif
 
 	// Starting point for automatic port swapping
 	Port_lastcheck_ms = systick_millis_count;
+
+	// Allocate latency measurement resource
+	portLatencyResource = Latency_add_resource("PortSwap", LatencyOption_Ticks);
 }
 
 // Port State processing loop
 inline uint8_t Port_scan()
 {
+	// Latency measurement start
+	Latency_start_time( portLatencyResource );
+
 	// TODO Add in interconnect line cross
 
 	#define USBPortSwapDelay_ms 1000
@@ -157,6 +183,9 @@ inline uint8_t Port_scan()
 		}
 	}
 
+	// Latency measurement end
+	Latency_end_time( portLatencyResource );
+
 	return 0;
 }
 
@@ -166,51 +195,60 @@ inline uint8_t Port_scan()
 
 void Port_uart_capability( TriggerMacro *trigger, uint8_t state, uint8_t stateType, uint8_t *args )
 {
-	// Display capability name
-	if ( stateType == 0xFF && state == 0xFF )
+	CapabilityState cstate = KLL_CapabilityState( state, stateType );
+
+	switch ( cstate )
 	{
+	case CapabilityState_Last:
+		// Only use capability on release
+		break;
+	case CapabilityState_Debug:
+		// Display capability name
 		print("Port_uart_capability()");
 		return;
-	}
-
-	// Only only release
-	// TODO Analog
-	if ( state != 0x03 )
+	default:
 		return;
+	}
 
 	Port_uart_swap();
 }
 
 void Port_usb_capability( TriggerMacro *trigger, uint8_t state, uint8_t stateType, uint8_t *args )
 {
-	// Display capability name
-	if ( stateType == 0xFF && state == 0xFF )
+	CapabilityState cstate = KLL_CapabilityState( state, stateType );
+
+	switch ( cstate )
 	{
+	case CapabilityState_Last:
+		// Only use capability on release
+		break;
+	case CapabilityState_Debug:
+		// Display capability name
 		print("Port_usb_capability()");
 		return;
-	}
-
-	// Only only release
-	// TODO Analog
-	if ( state != 0x03 )
+	default:
 		return;
+	}
 
 	Port_usb_swap();
 }
 
 void Port_cross_capability( TriggerMacro *trigger, uint8_t state, uint8_t stateType, uint8_t *args )
 {
-	// Display capability name
-	if ( stateType == 0xFF && state == 0xFF )
+	CapabilityState cstate = KLL_CapabilityState( state, stateType );
+
+	switch ( cstate )
 	{
+	case CapabilityState_Last:
+		// Only use capability on release
+		break;
+	case CapabilityState_Debug:
+		// Display capability name
 		print("Port_cross_capability()");
 		return;
-	}
-
-	// Only only release
-	// TODO Analog
-	if ( state != 0x03 )
+	default:
 		return;
+	}
 
 	Port_cross();
 }

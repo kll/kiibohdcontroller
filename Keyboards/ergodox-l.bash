@@ -24,7 +24,7 @@ BaseMap="scancode_map leftHand slave1 rightHand"
 # This is the default layer of the keyboard
 # NOTE: To combine kll files into a single layout, separate them by spaces
 # e.g.  DefaultMap="mylayout mylayoutmod"
-DefaultMap="infinity_ergodox/mine infinity_ergodox/lcdFuncMap"
+DefaultMap="infinity_ergodox/all-leds infinity_ergodox/mine infinity_ergodox/lcdFuncMap"
 
 # This is where you set the additional layers
 # NOTE: Indexing starts at 1
@@ -48,7 +48,7 @@ PartialMaps[2]="infinity_ergodox/iced_numpad"
 # Keyboard Module Configuration
 ScanModule="Infinity_Ergodox"
 MacroModule="PixelMap"
-OutputModule="pjrcUSB"
+OutputModule="USB"
 DebugModule="full"
 
 # Microcontroller

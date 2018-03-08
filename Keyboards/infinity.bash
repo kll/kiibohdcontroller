@@ -7,6 +7,14 @@
 
 
 
+# Default to Alphabet
+Layout=$(basename $0 | cut -d'.' -f2)
+if [ "${Layout}" = "bash" ]; then
+	Layout=alphabet
+fi
+
+
+
 #################
 # Configuration #
 #################
@@ -15,10 +23,13 @@
 
 BuildPath="IC60"
 
+# Define Layout Name
+LayoutName=${Layout}
+
 ## KLL Configuration ##
 
 # Generally shouldn't be changed, this will affect every layer
-BaseMap="scancode_map"
+BaseMap="scancode_map scancode_map.${Layout}"
 
 # This is the default layer of the keyboard
 # NOTE: To combine kll files into a single layout, separate them by spaces
@@ -46,7 +57,7 @@ PartialMaps[1]="ic60/hhkbpro2"
 # Keyboard Module Configuration
 ScanModule="Infinity_60"
 MacroModule="PartialMap"
-OutputModule="pjrcUSB"
+OutputModule="USB"
 DebugModule="full"
 
 # Microcontroller

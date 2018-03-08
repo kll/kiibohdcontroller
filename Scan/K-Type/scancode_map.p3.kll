@@ -6,7 +6,7 @@ Author = "HaaTa (Jacob Alexander) 2015-2017";
 KLL = 0.5;
 
 # Modified Date
-Date = 2017-11-17;
+Date = 2017-11-26;
 
 
 # Function Row (1-16)
@@ -110,12 +110,15 @@ S0x57 : U"LAlt";
 S0x58 : U"Space";
 S0x59 : U"RAlt";
 S0x5A : U"RGui";
-S0x5B : U"Menu";
+S0x5B : U"App";
 S0x5C : U"RCtrl";
 S0x5D : U"Left";
 S0x5E : U"Down";
 S0x5F : U"Right";
 
+
+# Latency Resources
+latencyResources = 10;
 
 
 # Driver Chip
@@ -149,6 +152,10 @@ LED_MapCh1_Bus  = 0x0;
 LED_MapCh1_Addr = ISSI_Ch1;
 LED_MapCh2_Bus  = 0x1;
 LED_MapCh2_Addr = ISSI_Ch1;
+
+# Channel Optimizations
+Pixel_HardCode_ChanWidth = 8;
+Pixel_HardCode_Channels = 3;
 
 
 # FPS Target
@@ -195,7 +202,7 @@ typedef struct LED_Buffer {
 	uint16_t reg_addr;
 	uint16_t buffer[192];
 } LED_Buffer;
-extern LED_Buffer LED_pageBuffer[ ISSI_Chips_define ];
+volatile LED_Buffer LED_pageBuffer[ ISSI_Chips_define ];
 ";
 
 

@@ -24,39 +24,13 @@
  * along with Entropy.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Not used for the mk20dx128vlf5 (not enough flash space)
-#if defined(_bootloader_) && defined(_mk20dx128vlf5_)
+// ----- Target Includes -----
 
-
-// ----- Includes -----
-
-#include "entropy.h"
-#include "mk20dx.h"
+#include "mcu_compat.h"
 
 
 
-// ----- Functions -----
-
-void rand_initialize()
-{
-}
-
-void rand_disable()
-{
-}
-
-uint8_t rand_available()
-{
-	return 0;
-}
-
-uint32_t rand_value32()
-{
-	return 0;
-}
-
-
-#elif defined(_host_)
+#if defined(_host_)
 
 
 // ----- Includes -----
@@ -93,14 +67,15 @@ uint32_t rand_value32()
 }
 
 
-#else
+#elif defined(_kinetis_)
 
 
 // ----- Includes -----
 
 #include "atomic.h"
 #include "entropy.h"
-#include "mk20dx.h"
+
+#include "kinetis.h"
 
 
 
@@ -248,5 +223,83 @@ void lptmr_isr()
 }
 
 
+#elif defined(_sam_)
+
+
+// ----- Includes -----
+
+#include <stdlib.h>
+#include "entropy.h"
+
+#include "sam.h"
+
+
+
+// ----- Functions -----
+
+void rand_initialize()
+{
+	// TODO (HaaTa)
+}
+
+void rand_disable()
+{
+	// TODO (HaaTa)
+}
+
+uint8_t rand_available()
+{
+	// TODO (HaaTa)
+	return 1;
+}
+
+// Pseudo-random value using clock
+uint32_t rand_value32()
+{
+	// TODO (HaaTa)
+	return 0;
+}
+
+
+#elif defined(_nrf_)
+
+
+// ----- Includes -----
+
+#include <stdlib.h>
+#include "entropy.h"
+
+#include "sam.h"
+
+
+
+// ----- Functions -----
+
+void rand_initialize()
+{
+	// TODO (HaaTa)
+}
+
+void rand_disable()
+{
+	// TODO (HaaTa)
+}
+
+uint8_t rand_available()
+{
+	// TODO (HaaTa)
+	return 1;
+}
+
+// Pseudo-random value using clock
+uint32_t rand_value32()
+{
+	// TODO (HaaTa)
+	return 0;
+}
+
+
+#else
+#error "Unknown build target for Lib/entropy"
 #endif
 
